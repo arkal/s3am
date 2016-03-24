@@ -277,6 +277,28 @@ def parse_args( args ):
                             default=defaults[ 'part_size' ], type=parse_verify_part_size,
                             help="The number of bytes in each part to verify. Verification is "
                                  "broken into parts for increased robustness." )
+
+    getkeys_sp = sps.add_parser( 'get-sse-keys', add_help=False, help="Get per-file SSE keys for "
+                                 "objects in a given bucket.", description="Get per-file SSE keys "
+                                 "for objects in a given bucket.",
+                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter )
+
+    add_common_arguments( getkeys_sp )
+
+    getkeys_sp.add_argument( 'url', metavar='URL',
+                             help="The location of the S3 object to verify. Must be of the form "
+                                  "s3://BUCKET/ or s3://BUCKET/KEY where KEY is either the key to "
+                                  "be queried, or the prefix to all keys that must be queried (The "
+                                  "latter requires the --prefix flag).")
+
+    getkeys_sp.add_argument( '--prefix', metavar='PREFIX', action='store_true',
+                             help="Should the KEY portion of the url be used a a prefix to query "
+                             "only files beginning with KEY?")
+
+    add_sse_opts( getkeys_sp, {
+        '--sse-key': "binary 32-byte key to use for verifying an S3 object that is encrypted with "
+                     "server-side encryption using customer-provided keys (SSE-C)." } )
+
     return p.parse_args( args )
 
 
