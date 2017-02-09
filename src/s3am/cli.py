@@ -64,9 +64,11 @@ def main( args ):
             download_slots=o.download_slots,
             upload_slots=o.upload_slots,
             sse_key=SSEKey( binary=o.sse_key or o.sse_key_file or o.sse_key_base64,
-                            is_master=o.sse_key_is_master ),
+                            is_master=o.sse_key_is_master,
+                            is_sse_s3=o.sse_s3 ),
             src_sse_key=SSEKey( binary=o.src_sse_key or o.src_sse_key_file or o.src_sse_key_base64,
-                                is_master=o.src_sse_key_is_master ),
+                                is_master=o.src_sse_key_is_master,
+                                is_sse_s3=False ),
             **kwargs )
     elif o.mode == 'cancel':
         operation = Cancel(
@@ -96,7 +98,8 @@ def main( args ):
             part_size=o.part_size,
             download_slots=o.download_slots,
             sse_key=SSEKey( binary=o.sse_key or o.sse_key_file or o.sse_key_base64,
-                            is_master=o.sse_key_is_master ),
+                            is_master=o.sse_key_is_master,
+                            is_sse_s3=False ),
             **kwargs )
     else:
         assert False
@@ -217,18 +220,24 @@ def parse_args( args ):
     def parse_sse_key_base64( s ):
         return parse_sse_key( base64.b64decode( s ) )
 
-    def add_sse_opts( sp, helps ):
+    def add_sse_opts( sp, helps, upload=False ):
         for prefix, sse_help in helps.iteritems( ):
             sse_key_gr = sp.add_mutually_exclusive_group( )
-            sse_key_gr.add_argument( prefix, metavar='KEY', type=parse_sse_key,
+            if upload:
+                sse_key_gr.add_argument( prefix + '-s3', action='store_true',
+                                        help="Should the encryption be handled with Amazon"
+                                             "S3-Managed Encryption Keys (SSE-S3) instead of a"
+                                             "customer-provided one?" )
+            sse_key_gr.add_argument( prefix + '-key', metavar='KEY', type=parse_sse_key,
                                      help="The %s. If the key starts with a - (dash) character, "
                                           "the --sse-key=... form of this option must be used." %
                                           sse_help )
-            sse_key_gr.add_argument( prefix + '-file', metavar='PATH', type=parse_sse_key_file,
+            sse_key_gr.add_argument( prefix + '-key-file', metavar='PATH', type=parse_sse_key_file,
                                      help="The path to a file containing the %s." % sse_help )
-            sse_key_gr.add_argument( prefix + '-base64', metavar='KEY', type=parse_sse_key_base64,
+            sse_key_gr.add_argument( prefix + '-key-base64', metavar='KEY',
+                                     type=parse_sse_key_base64,
                                      help="The base64 encoding of the %s" % sse_help )
-            sp.add_argument( prefix + '-is-master', default=False, action='store_true',
+            sp.add_argument( prefix + '-key-is-master', default=False, action='store_true',
                              help="Do not use the key directly but instead derive an "
                                   "object-specific key from it by appending the object's HTTP URL "
                                   "and computing the SHA-1 of the result." )
@@ -238,11 +247,12 @@ def parse_args( args ):
                                                              "customer-provided keys (SSE-C).")
 
     add_sse_opts( upload_sp, {
-        '--sse-key': sse_help( ) + " " +
+        '--sse': sse_help( ) + " " +
                      "The given key will be used to encrypt the uploaded content at rest in S3. "
                      "Subsequent downloads of the object will require the same key",
-        '--src-sse-key': sse_help( purpose="copying an S3 object that uses " ) + " " +
-                         "This option is only applicable if SRC_URL refers starts with s3://." } )
+        '--src-sse': sse_help( purpose="copying an S3 object that uses " ) + " " +
+                         "This option is only applicable if SRC_URL refers starts with s3://." },
+                  upload=True )
 
     add_common_arguments( upload_sp )
 
@@ -301,7 +311,7 @@ def parse_args( args ):
                                  "are %s." % ', '.join( algorithms ) )
 
     add_sse_opts( verify_sp, {
-        '--sse-key': "binary 32-byte key to use for verifying an S3 object that is encrypted with "
+        '--sse': "binary 32-byte key to use for verifying an S3 object that is encrypted with "
                      "server-side encryption using customer-provided keys (SSE-C)." } )
 
     def parse_download_part_size( s ):
@@ -334,7 +344,7 @@ def parse_args( args ):
     add_common_arguments( download_sp )
 
     add_sse_opts( download_sp, {
-        '--sse-key': "binary 32-byte key to use for downloading an S3 object that is encrypted "
+        '--sse': "binary 32-byte key to use for downloading an S3 object that is encrypted "
                      "with server-side encryption using customer-provided keys (SSE-C)." } )
 
     download_sp.add_argument( '--part-size', metavar='NUM',

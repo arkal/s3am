@@ -86,7 +86,7 @@ error_event = None
 num_cores = multiprocessing.cpu_count( )
 
 
-class SSEKey( namedtuple( '_SSEKey', 'binary is_master' ) ):
+class SSEKey( namedtuple( '_SSEKey', 'binary is_master is_sse_s3' ) ):
     """
     A namedtuple of the binary SSE-C key and its attributes.
 
@@ -117,7 +117,7 @@ class SSEKey( namedtuple( '_SSEKey', 'binary is_master' ) ):
             url = '/'.join( [ base_url, bucket_name, key_name ] )
             binary = hashlib.sha256( self.binary + str( url ) ).digest( )
             assert len( binary ) == 32
-            return SSEKey( binary, False )
+            return SSEKey( binary, False, False )
         else:
             return self
 
@@ -643,7 +643,9 @@ class Upload( BucketModification ):
                     # an ACL for the uploader and one for the bucket owner will be created.
                     headers[ 'x-amz-acl' ] = 'bucket-owner-full-control'
                     upload_id = bucket.initiate_multipart_upload( key_name=self.key_name,
-                                                                  headers=headers ).id
+                                                                  headers=headers,
+                                                                  encrypt_key=self.sse_key.is_sse_s3
+                                                                  ).id
                     return upload_id, { }
                 elif self.resume:
                     if len( uploads ) == 1:

@@ -130,10 +130,10 @@ class OperationsTests( unittest.TestCase ):
             else:
                 raise
 
-    def _assert_key( self, test_file, sse_key=None, is_master=False ):
+    def _assert_key( self, test_file, sse_key=None, is_master=False, sse_s3=None ):
         headers = { }
         if sse_key is not None:
-            sse_key = s3am.operations.SSEKey( binary=sse_key, is_master=is_master )
+            sse_key = s3am.operations.SSEKey( binary=sse_key, is_master=is_master, is_sse_s3=False )
             sse_key = sse_key.resolve( bucket_location=self.bucket.get_location( ),
                                        bucket_name=self.bucket.name,
                                        key_name=test_file.name )
@@ -141,6 +141,8 @@ class OperationsTests( unittest.TestCase ):
         key = self.bucket.get_key( test_file.name, headers=headers )
         self.assertEquals( key.size, test_file.size )
         self.assertEquals( md5( key.get_contents_as_string( headers=headers ) ), test_file.md5 )
+        if sse_s3 is not None:
+            assert key.encrypted == 'AES256'
 
     def test_file_urls( self ):
         test_file = self.test_files[ 1 ]
@@ -247,6 +249,20 @@ class OperationsTests( unittest.TestCase ):
                 self._test_download( test_file, args=args )
             finally:
                 self._clean_bucket( self.bucket )
+
+    def test_sse_s3_encryption(self):
+        try:
+            test_file = self.test_files[two_and_a_half_parts]
+            src_url = self.ftp_url(test_file)
+            args = concat( '--sse-s3' )
+            s3am.cli.main(concat(
+                'upload', verbose, slots, src_url, self.s3_url(),
+                '--exists=overwrite',
+                args))
+            # Ensure that the key exists in the bucket and that it is encrypted
+            self._assert_key(test_file, sse_s3=True)
+        finally:
+            self._clean_bucket(self.bucket)
 
     def test_resume( self ):
         test_file = self.test_files[ two_and_a_half_parts ]
